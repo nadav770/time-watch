@@ -17,9 +17,9 @@ const connection = process.env.DATABASE_URL || {
 const db = knex({ client: 'pg', connection });
 
 async function createAdmin() {
-  const email = 'oskeisar@gmail.com';
-  const password = 'ozKeisar123456!';
-  const full_name = 'Os Keisar';
+  const email = 'ozkeisar@gmail.com';
+  const password = 'ozKeisar1234!';
+  const full_name = 'Oz Keisar';
 
   const existing = await db('users').where({ email }).whereNull('deleted_at').first();
   if (existing) {
