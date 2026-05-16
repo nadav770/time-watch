@@ -2,7 +2,7 @@
 // Paths are relative (e.g. '/api/reports'); Vite's dev proxy forwards `/api`
 // to the backend, and Vercel rewrites do the same in production.
 
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
+const API_BASE = ''
 
 export class ApiError extends Error {
   constructor(message, status, body) {
