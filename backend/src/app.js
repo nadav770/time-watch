@@ -34,12 +34,13 @@ function isExemptFromAuth(req) {
 
 const ALLOWED_ORIGINS = [
   process.env.FRONTEND_URL,
+  'https://time-watch1.netlify.app',
   'http://localhost:5173',
   'http://localhost:3000',
 ].filter(Boolean);
 
 function corsOriginFn(origin, callback) {
-  // No Origin header = server-to-server (e.g. Vercel edge proxy) — allow.
+  // No Origin header = server-to-server (e.g. Render/Netlify edge) — allow.
   if (!origin) return callback(null, true);
   if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
   callback(new Error(`CORS: origin '${origin}' not allowed`));
@@ -48,7 +49,12 @@ function corsOriginFn(origin, callback) {
 function createApp() {
   const app = express();
 
-  app.use(cors({ origin: corsOriginFn, credentials: true }));
+  app.use(cors({
+    origin: corsOriginFn,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }));
   app.use(express.json());
   app.use(cookieParser());
 
