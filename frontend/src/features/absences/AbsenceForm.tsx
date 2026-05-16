@@ -1,11 +1,11 @@
-import { forwardRef, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MouseEventHandler } from 'react'
+﻿import { forwardRef, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MouseEventHandler } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import './AbsenceForm.css'
 import { IconUpload, IconTrash } from './absenceIcons'
 import { createAbsence, deleteDocument, updateAbsence, uploadDocument } from './absencesApi'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 type AbsenceType = 'vacation' | 'half_day_vac' | 'sick' | 'military_reserve'
 type LegacyAbsenceType = AbsenceType
