@@ -9,7 +9,7 @@ const { ValidationError, UnauthorizedError } = require('../utils/errors');
 function cookieBase() {
   return {
     httpOnly: true,
-    sameSite: 'strict',
+    sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
   };
 }

@@ -1,9 +1,8 @@
-// Thin fetch wrapper that adds JWT auth headers, parses JSON, and surfaces
-// errors as thrown exceptions so callers can just `try/catch`. Paths are
-// relative (e.g. '/api/reports'); Vite's dev proxy forwards `/api` to the
-// backend container.
+// Thin fetch wrapper — sends httpOnly session cookie on every request.
+// Paths are relative (e.g. '/api/reports'); Vite's dev proxy forwards `/api`
+// to the backend, and Vercel rewrites do the same in production.
 
-import { getToken, clearToken } from '../features/auth/authSlice.ts'
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export class ApiError extends Error {
   constructor(message, status, body) {
@@ -14,22 +13,22 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
-
 export async function apiFetch(path, options = {}) {
-  const token = getToken()
   const isFormData = options.body instanceof FormData
   const headers = {
     Accept: 'application/json',
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {}),
   }
-  if (token) headers.Authorization = `Bearer ${token}`
 
   let response
   try {
-    response = await fetch(API_BASE + path, { ...options, headers })
-  } catch (networkErr) {
+    response = await fetch(API_BASE + path, {
+      ...options,
+      headers,
+      credentials: 'include',
+    })
+  } catch {
     throw new ApiError('שגיאת רשת — נסה שוב', 0, null)
   }
 
@@ -42,8 +41,6 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (response.status === 401) {
-    // Token rejected by server — wipe it so PrivateRoute redirects to /login
-    clearToken()
     throw new ApiError('פג תוקף החיבור — נא להתחבר מחדש', 401, body)
   }
 

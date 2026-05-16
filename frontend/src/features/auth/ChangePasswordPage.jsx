@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { changePassword } from '../../services/authApi'
+import { apiFetch } from '../../api/client'
 
 const PASSWORD_RULES = [
   { test: p => p.length >= 8,            label: 'לפחות 8 תווים' },
@@ -33,7 +33,10 @@ export default function ChangePasswordPage() {
     setSaving(true)
     setError('')
     try {
-      await changePassword(currentPw, newPw)
+      await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: currentPw, new_password: newPw }),
+      })
       patchUser({ must_change_password: false })
       navigate('/monthly', { replace: true })
     } catch (err) {

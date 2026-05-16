@@ -20,7 +20,7 @@ const adminRouter       = require("./routes/admin");
 const workEntriesRouter = require("./routes/workEntries");
 
 if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
-  throw new Error('FRONTEND_URL environment variable is required in production');
+  console.warn('[WARN] FRONTEND_URL is not set in production — only localhost will be allowed by CORS.');
 }
 
 function isExemptFromAuth(req) {
@@ -32,11 +32,23 @@ function isExemptFromAuth(req) {
   return false;
 }
 
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean);
+
+function corsOriginFn(origin, callback) {
+  // No Origin header = server-to-server (e.g. Vercel edge proxy) — allow.
+  if (!origin) return callback(null, true);
+  if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+  callback(new Error(`CORS: origin '${origin}' not allowed`));
+}
+
 function createApp() {
   const app = express();
 
-  const corsOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
-  app.use(cors({ origin: corsOrigin, credentials: true }));
+  app.use(cors({ origin: corsOriginFn, credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
 

@@ -1,26 +1,21 @@
-import { request } from './apiClient'
+import { apiFetch } from '../api/client'
 
-// Fetch all users (admin only)
 export function getUsers() {
-  return request('GET', '/api/users')
+  return apiFetch('/api/users')
 }
 
-// Create a new user (admin only)
 export function createUser(data) {
-  return request('POST', '/api/users', data)
+  return apiFetch('/api/users', { method: 'POST', body: JSON.stringify(data) })
 }
 
-// Update an existing user by id (admin only)
 export function updateUser(id, data) {
-  return request('PUT', `/api/users/${id}`, data)
+  return apiFetch(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 }
 
-// Soft-deactivate a user by id; throws on last-admin guard (400)
 export function deactivateUser(id) {
-  return request('PATCH', `/api/users/${id}/deactivate`)
+  return apiFetch(`/api/users/${id}/deactivate`, { method: 'PATCH' })
 }
 
-// Reactivate a previously deactivated user
 export function activateUser(id) {
-  return request('PATCH', `/api/users/${id}/activate`)
+  return apiFetch(`/api/users/${id}/activate`, { method: 'PATCH' })
 }

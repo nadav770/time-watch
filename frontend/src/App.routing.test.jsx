@@ -4,7 +4,8 @@
  * redirects to the right destination for the given auth state and path.
  *
  * Strategy: render a lightweight AppShell with MemoryRouter + real AuthProvider
- * + mocked authApi, mirroring the route structure in App.tsx.
+ * + mocked global fetch (AuthContext calls fetch directly), mirroring the
+ * route structure in App.tsx.
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
@@ -14,18 +15,21 @@ import LoginPage from './features/auth/LoginPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 
-vi.mock('./services/authApi', () => ({
-  login:  vi.fn(),
-  getMe:  vi.fn(),
-  logout: vi.fn(),
-}))
-
-import * as authApi from './services/authApi'
+// AuthContext uses fetch() directly — mock it globally
+const mockFetch = vi.fn()
+vi.stubGlobal('fetch', mockFetch)
 
 // Lightweight stubs so tests don't load full page trees
 const DailyStub  = () => <div>daily-page</div>
 const UsersStub  = () => <div>users-page</div>
 const AdminStub  = () => <div>admin-layout<Outlet /></div>
+
+function makeResponse(ok, data) {
+  return Promise.resolve({
+    ok,
+    json: () => Promise.resolve(data),
+  })
+}
 
 // Mirrors the real App.tsx route structure (without Layout chrome)
 function AppShell({ initialEntries = ['/'] }) {
@@ -62,13 +66,13 @@ beforeEach(() => vi.clearAllMocks())
 
 describe('/login route', () => {
   it('renders the login form when the user is not authenticated', async () => {
-    authApi.getMe.mockRejectedValue({ status: 401 })
+    mockFetch.mockReturnValue(makeResponse(false, null))
     render(<AppShell initialEntries={['/login']} />)
     expect(await screen.findByRole('button', { name: /כניסה/i })).toBeInTheDocument()
   })
 
   it('redirects an already-authenticated user away from /login to /daily', async () => {
-    authApi.getMe.mockResolvedValue({ id: 1, role: 'employee' })
+    mockFetch.mockReturnValue(makeResponse(true, { id: 1, role: 'employee' }))
     render(<AppShell initialEntries={['/login']} />)
     await waitFor(() => expect(screen.getByText('daily-page')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /כניסה/i })).not.toBeInTheDocument()
@@ -79,27 +83,27 @@ describe('/login route', () => {
 
 describe('ProtectedRoute — unauthenticated users', () => {
   it('redirects to /login when visiting /daily without a session', async () => {
-    authApi.getMe.mockRejectedValue({ status: 401 })
+    mockFetch.mockReturnValue(makeResponse(false, null))
     render(<AppShell initialEntries={['/daily']} />)
     expect(await screen.findByRole('button', { name: /כניסה/i })).toBeInTheDocument()
     expect(screen.queryByText('daily-page')).not.toBeInTheDocument()
   })
 
   it('redirects to /login when visiting /monthly without a session', async () => {
-    authApi.getMe.mockRejectedValue({ status: 401 })
+    mockFetch.mockReturnValue(makeResponse(false, null))
     render(<AppShell initialEntries={['/monthly']} />)
     expect(await screen.findByRole('button', { name: /כניסה/i })).toBeInTheDocument()
   })
 
   it('redirects to /login when visiting /admin/users without a session', async () => {
-    authApi.getMe.mockRejectedValue({ status: 401 })
+    mockFetch.mockReturnValue(makeResponse(false, null))
     render(<AppShell initialEntries={['/admin/users']} />)
     expect(await screen.findByRole('button', { name: /כניסה/i })).toBeInTheDocument()
     expect(screen.queryByText('users-page')).not.toBeInTheDocument()
   })
 
   it('shows a loading spinner while the session check is in flight', () => {
-    authApi.getMe.mockReturnValue(new Promise(() => {})) // never resolves
+    mockFetch.mockReturnValue(new Promise(() => {})) // never resolves
     render(<AppShell initialEntries={['/daily']} />)
     expect(screen.getByRole('status')).toBeInTheDocument()
     expect(screen.queryByText('daily-page')).not.toBeInTheDocument()
@@ -110,13 +114,13 @@ describe('ProtectedRoute — unauthenticated users', () => {
 
 describe('ProtectedRoute — authenticated employees', () => {
   it('renders /daily for an authenticated employee', async () => {
-    authApi.getMe.mockResolvedValue({ id: 1, role: 'employee' })
+    mockFetch.mockReturnValue(makeResponse(true, { id: 1, role: 'employee' }))
     render(<AppShell initialEntries={['/daily']} />)
     expect(await screen.findByText('daily-page')).toBeInTheDocument()
   })
 
   it('does not redirect an employee away from /daily to /login', async () => {
-    authApi.getMe.mockResolvedValue({ id: 1, role: 'employee' })
+    mockFetch.mockReturnValue(makeResponse(true, { id: 1, role: 'employee' }))
     render(<AppShell initialEntries={['/daily']} />)
     await screen.findByText('daily-page')
     expect(screen.queryByRole('button', { name: /כניסה/i })).not.toBeInTheDocument()
@@ -127,31 +131,28 @@ describe('ProtectedRoute — authenticated employees', () => {
 
 describe('AdminRoute — role guard', () => {
   it('renders /admin/users for an authenticated admin', async () => {
-    authApi.getMe.mockResolvedValue({ id: 1, role: 'admin' })
+    mockFetch.mockReturnValue(makeResponse(true, { id: 1, role: 'admin' }))
     render(<AppShell initialEntries={['/admin/users']} />)
     expect(await screen.findByText('users-page')).toBeInTheDocument()
   })
 
   it('does NOT render /admin/users for an authenticated employee', async () => {
-    authApi.getMe.mockResolvedValue({ id: 2, role: 'employee' })
+    mockFetch.mockReturnValue(makeResponse(true, { id: 2, role: 'employee' }))
     render(<AppShell initialEntries={['/admin/users']} />)
-    // Employee is redirected away — should never see the admin page
     await waitFor(() =>
       expect(screen.queryByText('users-page')).not.toBeInTheDocument()
     )
   })
 
   it('sends an employee who visits /admin/users to the daily page', async () => {
-    authApi.getMe.mockResolvedValue({ id: 2, role: 'employee' })
+    mockFetch.mockReturnValue(makeResponse(true, { id: 2, role: 'employee' }))
     render(<AppShell initialEntries={['/admin/users']} />)
-    // AdminRoute → / → /daily (all within the protected zone)
     expect(await screen.findByText('daily-page')).toBeInTheDocument()
   })
 
   it('redirects an unauthenticated request for /admin/users to /login (not daily)', async () => {
-    authApi.getMe.mockRejectedValue({ status: 401 })
+    mockFetch.mockReturnValue(makeResponse(false, null))
     render(<AppShell initialEntries={['/admin/users']} />)
-    // ProtectedRoute fires first, so the user sees /login, not the daily page
     expect(await screen.findByRole('button', { name: /כניסה/i })).toBeInTheDocument()
     expect(screen.queryByText('daily-page')).not.toBeInTheDocument()
     expect(screen.queryByText('users-page')).not.toBeInTheDocument()
@@ -162,15 +163,14 @@ describe('AdminRoute — role guard', () => {
 
 describe('catch-all route', () => {
   it('redirects unknown paths to /login when unauthenticated', async () => {
-    authApi.getMe.mockRejectedValue({ status: 401 })
+    mockFetch.mockReturnValue(makeResponse(false, null))
     render(<AppShell initialEntries={['/some/unknown/path']} />)
     expect(await screen.findByRole('button', { name: /כניסה/i })).toBeInTheDocument()
   })
 
   it('redirects unknown paths to /daily when authenticated (via / → /daily)', async () => {
-    authApi.getMe.mockResolvedValue({ id: 1, role: 'employee' })
+    mockFetch.mockReturnValue(makeResponse(true, { id: 1, role: 'employee' }))
     render(<AppShell initialEntries={['/some/unknown/path']} />)
-    // * → /login → LoginPage sees authed user → / → /daily
     expect(await screen.findByText('daily-page')).toBeInTheDocument()
   })
 })

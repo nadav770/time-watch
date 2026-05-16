@@ -34,22 +34,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function login(email: string, password: string) {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
+    let res: Response
+    try {
+      res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+    } catch {
+      throw new Error('אירעה שגיאה. נסי שוב מאוחר יותר')
+    }
     if (!res.ok) {
       const body = await res.json().catch(() => null)
-      throw new Error(body?.error || 'התחברות נכשלה')
+      if (res.status === 423) throw new Error('החשבון ננעל עקב ניסיונות התחברות מרובים')
+      if (res.status === 401) throw new Error(body?.error ?? 'האימייל או הסיסמה שגויים')
+      throw new Error(body?.error ?? 'התחברות נכשלה')
     }
     const data = await res.json()
     setUser(data)
   }
 
   async function logout() {
-    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+    } catch {
+      // ignore network errors — user state is cleared locally regardless
+    }
     setUser(null)
   }
 

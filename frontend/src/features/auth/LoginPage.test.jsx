@@ -6,13 +6,17 @@ import { AuthProvider, useAuth } from '../../context/AuthContext'
 import ProtectedRoute from '../../components/ProtectedRoute'
 import LoginPage from './LoginPage'
 
-vi.mock('../../services/authApi', () => ({
-  login: vi.fn(),
-  getMe: vi.fn(),
-  logout: vi.fn(),
-}))
+// AuthContext calls fetch() directly — mock it globally
+const mockFetch = vi.fn()
+vi.stubGlobal('fetch', mockFetch)
 
-import * as authApi from '../../services/authApi'
+function makeResponse(status, data) {
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(data),
+  })
+}
 
 function LogoutButtonTest() {
   const auth = useAuth()
@@ -51,14 +55,14 @@ beforeEach(() => {
 
 // LoginPage auth-state behaviour
 it('shows spinner on /login while auth is loading', () => {
-  authApi.getMe.mockReturnValue(new Promise(() => {}))
+  mockFetch.mockReturnValue(new Promise(() => {})) // never resolves
   renderApp(['/login'])
   expect(screen.getByRole('status')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /כניסה/i })).not.toBeInTheDocument()
 })
 
 it('redirects authenticated user from /login to home', async () => {
-  authApi.getMe.mockResolvedValue({ id: 1, role: 'employee' })
+  mockFetch.mockReturnValue(makeResponse(200, { id: 1, role: 'employee' }))
   renderApp(['/login'])
   await waitFor(() => expect(screen.getByText(/Home/)).toBeInTheDocument())
   expect(screen.queryByRole('button', { name: /כניסה/i })).not.toBeInTheDocument()
@@ -66,20 +70,16 @@ it('redirects authenticated user from /login to home', async () => {
 
 // 15.1 valid session: spinner shows briefly then home renders — no redirect to /login
 it('15.1 valid session on hard refresh: shows home without redirecting to login', async () => {
-  authApi.getMe.mockResolvedValue({ id: 1, role: 'employee' })
-
+  mockFetch.mockReturnValue(makeResponse(200, { id: 1, role: 'employee' }))
   renderApp(['/'])
-
   await waitFor(() => expect(screen.getByText(/Home/)).toBeInTheDocument())
   expect(screen.queryByRole('button', { name: /כניסה/i })).not.toBeInTheDocument()
 })
 
-// 15.2 expired session: getMe throws → redirects to /login
+// 15.2 expired session: /me fails → redirects to /login
 it('15.2 expired session on hard refresh: redirects to /login', async () => {
-  authApi.getMe.mockRejectedValue({ status: 401, message: 'HTTP 401' })
-
+  mockFetch.mockReturnValue(makeResponse(401, null))
   renderApp(['/'])
-
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /כניסה/i })).toBeInTheDocument()
   )
@@ -88,8 +88,11 @@ it('15.2 expired session on hard refresh: redirects to /login', async () => {
 
 // 15.3 successful login: redirects to home
 it('15.3 successful login redirects to home', async () => {
-  authApi.getMe.mockRejectedValue({ status: 401, message: 'HTTP 401' })
-  authApi.login.mockResolvedValue({ id: 1, email: 'admin@test.com', role: 'admin' })
+  // First call: /api/auth/me → 401 (not logged in yet)
+  // Second call: /api/auth/login → 200 with user
+  mockFetch
+    .mockReturnValueOnce(makeResponse(401, null))
+    .mockReturnValueOnce(makeResponse(200, { id: 1, email: 'admin@test.com', role: 'admin' }))
 
   renderApp(['/login'])
 
@@ -102,8 +105,9 @@ it('15.3 successful login redirects to home', async () => {
 
 // 15.4 wrong credentials (401): Hebrew error shown, stays on /login
 it('15.4 wrong credentials shows Hebrew 401 error', async () => {
-  authApi.getMe.mockRejectedValue({ status: 401, message: 'HTTP 401' })
-  authApi.login.mockRejectedValue({ status: 401, message: 'HTTP 401' })
+  mockFetch
+    .mockReturnValueOnce(makeResponse(401, null))
+    .mockReturnValueOnce(makeResponse(401, { error: 'האימייל או הסיסמה שגויים' }))
 
   renderApp(['/login'])
 
@@ -119,8 +123,9 @@ it('15.4 wrong credentials shows Hebrew 401 error', async () => {
 
 // 15.5 locked account (423): distinct Hebrew error shown, stays on /login
 it('15.5 locked account shows Hebrew 423 error', async () => {
-  authApi.getMe.mockRejectedValue({ status: 401, message: 'HTTP 401' })
-  authApi.login.mockRejectedValue({ status: 423, message: 'HTTP 423' })
+  mockFetch
+    .mockReturnValueOnce(makeResponse(401, null))
+    .mockReturnValueOnce(makeResponse(423, { error: 'locked' }))
 
   renderApp(['/login'])
 
@@ -136,8 +141,9 @@ it('15.5 locked account shows Hebrew 423 error', async () => {
 
 // 15.6 network error (no response): generic Hebrew error shown, stays on /login
 it('15.6 network error shows generic Hebrew error', async () => {
-  authApi.getMe.mockRejectedValue({ status: 401, message: 'HTTP 401' })
-  authApi.login.mockRejectedValue({ status: 0, message: 'Network error' })
+  mockFetch
+    .mockReturnValueOnce(makeResponse(401, null))    // /api/auth/me
+    .mockRejectedValueOnce(new TypeError('Failed to fetch')) // /api/auth/login network fail
 
   renderApp(['/login'])
 
@@ -153,8 +159,10 @@ it('15.6 network error shows generic Hebrew error', async () => {
 
 // 15.7 logout: user is cleared, browser lands on /login
 it('15.7 logout clears user and redirects to /login', async () => {
-  authApi.getMe.mockResolvedValue({ id: 1, role: 'employee' })
-  authApi.logout.mockResolvedValue(undefined)
+  // /api/auth/me → authenticated; /api/auth/logout → 200
+  mockFetch
+    .mockReturnValueOnce(makeResponse(200, { id: 1, role: 'employee' }))
+    .mockReturnValueOnce(makeResponse(200, {}))
 
   renderApp(['/'])
 
