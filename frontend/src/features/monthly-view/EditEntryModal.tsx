@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react'
 import type { Entry } from './EntryList'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
+const API_BASE = ''
 
 interface Props {
   entry: Entry

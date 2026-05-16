@@ -5,7 +5,7 @@ import './AbsenceForm.css'
 import { IconUpload, IconTrash } from './absenceIcons'
 import { createAbsence, deleteDocument, updateAbsence, uploadDocument } from './absencesApi'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
+const API_BASE = ''
 
 type AbsenceType = 'vacation' | 'half_day_vac' | 'sick' | 'military_reserve'
 type LegacyAbsenceType = AbsenceType
