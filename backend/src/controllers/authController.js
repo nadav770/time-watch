@@ -7,10 +7,12 @@ const { ValidationError, UnauthorizedError } = require('../utils/errors');
 
 // Evaluated per-request so that NODE_ENV can be overridden in tests (e.g. to assert the Secure flag)
 function cookieBase() {
+  const prod = process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    // cross-domain (Netlify → Render) requires sameSite:'none' + secure:true
+    sameSite: prod ? 'none' : 'lax',
+    secure: prod,
   };
 }
 
