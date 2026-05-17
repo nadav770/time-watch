@@ -6,9 +6,12 @@
 module.exports = {
   testEnvironment: 'node',
   maxWorkers: 1,
+  preset: 'ts-jest',
   setupFiles: ['./jest.setup.js'],
+  testMatch: ['**/*.test.ts'],
   testPathIgnorePatterns: [
     '/node_modules/',
     'src/__tests__/helpers/',
   ],
+  moduleFileExtensions: ['ts', 'js'],
 };
