@@ -1,6 +1,6 @@
 ﻿// Thin fetch wrapper — sends httpOnly session cookie on every request.
 // Paths are relative (e.g. '/api/reports'); Vite's dev proxy forwards `/api`
-// to the backend, and Vercel rewrites do the same in production.
+// to the backend in dev, and Netlify's _redirects proxies to Render in production.
 
 const API_BASE = ''
 
